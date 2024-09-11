@@ -30,7 +30,7 @@ class Mistral(nn.Module):
             self.backbone = get_peft_model(self.backbone, self.peft_config)
         else:
             self.backbone = PeftModel.from_pretrained(model = self.backbone, 
-                                                    model_id = "/data2/xiaohui/work/LLM/saved_model/finetune",
+                                                    model_id = pre_perf_path,
                                                     is_trainable = True)
 
         # show number of trainning parameters
