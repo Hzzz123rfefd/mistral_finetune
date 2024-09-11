@@ -1,3 +1,4 @@
 *.jsonl
 *.json
 __pycache__
+save_model/*
