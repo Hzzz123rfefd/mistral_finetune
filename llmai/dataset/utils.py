@@ -1,16 +1,13 @@
 from functools import partial
 import os
 import sys
-import torch
 sys.path.append(os.getcwd())
-import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoTokenizer
 from transformers import PreTrainedTokenizer
 import os
 from dataclasses import dataclass, field
-from typing import Optional
 import datasets
 
 
