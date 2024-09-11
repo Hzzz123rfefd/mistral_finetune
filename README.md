@@ -1,7 +1,14 @@
 # mistral_finetune
 finetune mistral with code
 ## Installation
-
+Operating System: Linux
+```bash
+conda create -n mistral_finetune python=3.10
+conda activate mistral_finetune
+git clone https://github.com/Hzzz123rfefd/mistral_finetune.git
+cd mistral_finetune
+pip install -r requirements.txt
+```
 ## Usage
 ### finetune
 1、prepare finetune data,using jsonl format
