@@ -16,7 +16,7 @@ class Mistral(nn.Module):
             self.peft_config_dir = None
 
         # load base model
-        self.backbone =  AutoModelForCausalLM.from_pretrained(
+        self.base_model =  AutoModelForCausalLM.from_pretrained(
             self.model_name_or_path,
             torch_dtype=torch.float16
         )
@@ -41,9 +41,9 @@ class Mistral(nn.Module):
 
         # load model with peft
         if self.peft_config_dir == None:
-            self.backbone = get_peft_model(self.backbone, self.peft_config)
+            self.backbone = get_peft_model(self.base_model, self.peft_config)
         else:
-            self.backbone = PeftModel.from_pretrained(model = self.backbone, 
+            self.backbone = PeftModel.from_pretrained(model = self.base_model, 
                                                                                     model_id = self.peft_config_dir,
                                                                                     is_trainable = True)
 
