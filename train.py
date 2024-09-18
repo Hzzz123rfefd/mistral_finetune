@@ -63,7 +63,7 @@ def clip_gradient(optimizer, grad_clip):
 
 
 def train_one_epoch(
-    epoch,train_dataloader, model, optimizer,criterion,clip_max_norm,args,tokenizer
+    epoch,train_dataloader, model, optimizer,criterion,clip_max_norm,log_path
 ):
     model.train()
     device = next(model.parameters()).device
@@ -105,7 +105,7 @@ def train_one_epoch(
         )
         pbar.set_postfix_str(postfix_str)
         pbar.update()
-    with open(args.lora_config_dir + '/train.log', "a") as file:
+    with open(log_path, "a") as file:
         file.write(postfix_str+"\n")
 
     # text = """Prompt to be observed"""
@@ -121,7 +121,7 @@ def train_one_epoch(
     #     file.write(answer+"\n")
 
 
-def test_epoch(epoch, test_dataloader, model, criterion, args):
+def test_epoch(epoch, test_dataloader, model, criterion,log_path):
     total_loss = AverageMeter()
     average_hit_rate = AverageMeter()
     model.eval()
@@ -144,7 +144,7 @@ def test_epoch(epoch, test_dataloader, model, criterion, args):
         f"total_loss: {total_loss.avg:.4f}\n"
         )
     print(str)
-    with open(args.lora_config_dir + '/train.log', "a") as file:
+    with open(log_path, "a") as file:
         file.write(str+"\n")
     return total_loss.avg
 
@@ -155,25 +155,18 @@ def main(args):
 
     """get net struction"""
     if os.path.isdir(args.lora_config_dir):
-        tokenizer = AutoTokenizer.from_pretrained(args.lora_config_dir)
         model = Mistral(base_model_name_or_path = args.base_model_name_or_path,
-                        pre_perf_path = args.lora_config_dir,
-                        trainning = True)
+                                    peft_config_dir = args.lora_config_dir)
     else:
         os.makedirs(args.lora_config_dir)
-        tokenizer = AutoTokenizer.from_pretrained(args.base_model_name_or_path)
-        model = Mistral(base_model_name_or_path = args.base_model_name_or_path,
-                        pre_perf_path = None,
-                        trainning = True)
-    tokenizer.pad_token = tokenizer.eos_token 
-    tokenizer.padding_side = "left"
+        model = Mistral(base_model_name_or_path = args.base_model_name_or_path)
     model.to(device)
 
     """get data loader"""
     train_datasets = MyDataset(data_path = args.data_path)
     test_dataset = MyDataset(data_path = args.data_path)
     collate_fn_ = partial(collate_fn, 
-                          tokenizer=tokenizer)
+                          tokenizer=model.tokenizer)
     train_dataloader = DataLoader(train_datasets, 
                               batch_size=args.batch_size, 
                               shuffle=True,
@@ -201,14 +194,14 @@ def main(args):
 
     if not os.path.exists(checkpoint_path):   
         save_checkpoint(
-            {
+            state = {
                 "epoch": -1,
                 "loss": float("inf"),
                 "optimizer": optimizer.state_dict(),
                 "lr_scheduler": lr_scheduler.state_dict(),
             },
-            True,
-            checkpoint_path,
+            is_best = True,
+            filename = checkpoint_path,
         )
 
     if not os.path.exists(log_path):   
@@ -221,31 +214,36 @@ def main(args):
     lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
 
     """ inference """
-    best_loss = float("inf")
+    best_loss = checkpoint["loss"]
     for epoch in range(last_epoch,args.total_epoch):
         print(f"Learning rate: {optimizer.param_groups[0]['lr']}")
-        train_one_epoch(epoch,train_dataloader, model, optimizer,
-                        criterion,
-                        0.5,
-                        args,
-                        tokenizer)
-        loss = test_epoch(epoch,test_dataloader,model,criterion,args)
+        train_one_epoch(epoch = epoch,
+                        train_dataloader = train_dataloader, 
+                        model = model, 
+                        optimizer = optimizer,
+                        criterion = criterion,
+                        clip_max_norm = 0.5,
+                        log_path = log_path)
+        loss = test_epoch(epoch = epoch,
+                                    test_dataloader = test_dataloader,
+                                    model = model,
+                                    criterion = criterion,
+                                    log_path = log_path)
         lr_scheduler.step(loss)
         is_best = loss < best_loss
         best_loss = min(loss, best_loss)
         save_checkpoint(
-            {
+            state = {
                 "epoch": epoch,
                 "loss": loss,
                 "optimizer": optimizer.state_dict(),
                 "lr_scheduler": lr_scheduler.state_dict()
             },
-            is_best,
-            checkpoint_path,
+            is_best = is_best,
+            filename = checkpoint_path,
             )
         if is_best:
             model.save_pretrained(args.lora_config_dir)
-            tokenizer.save_pretrained(args.lora_config_dir)
 
 
 
@@ -257,7 +255,7 @@ if __name__ == "__main__":
     
     parser.add_argument("--lora_config_dir",
                         type=str,
-                        default = "./saved_model/finetune")
+                        default = "./saved_model/test")
     
     parser.add_argument("--data_path",
                         type=str,
