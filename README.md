@@ -58,7 +58,7 @@ python example/chat.py --prompt {prompt} \
 ```bash
 python example/chat.py --prompt "你是一名数据库专家" \
                        --base_model_name_or_path "mistralai/Mistral-7B-Instruct-v0.3" \
-                       --lora_config_dir "/data2/xiaohui/work/LLM/saved_model/finetune" \
+                       --lora_config_dir "saved_model/finetune" \
                        --max_new_tokens 256 \
                        --device "cuda"
 ```
@@ -85,9 +85,9 @@ python example/chat_with_context.py --context_path {context json file path} \
 ```
 * example
 ```bash
-python example/chat_with_context.py --context_path "example/context.json" \
+python example/chat_with_context.py --context_path "data/context.json" \
                                     --base_model_name_or_path "mistralai/Mistral-7B-Instruct-v0.3" \
-                                    --lora_config_dir "/data2/xiaohui/work/LLM/saved_model/finetune" \
+                                    --lora_config_dir "saved_model/finetune" \
                                     --max_new_tokens 256 \
                                     --device "cuda"
 ```
