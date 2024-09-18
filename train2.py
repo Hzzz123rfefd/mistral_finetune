@@ -24,22 +24,22 @@ def main(args):
 
     """ get args """
     trainning_args = TrainingArguments(
-    output_dir=args.lora_config_dir, # 要保存的目录和存储库ID
-    num_train_epochs = args.total_epoch,                     # 训练周期数
-    per_device_train_batch_size = args.batch_size,          # 训练期间每个设备的批量大小
-    gradient_accumulation_steps = 2,          # 反向/更新前的步骤数
-    gradient_checkpointing = True,            # 使用渐变检查点来节省内存
-    optim="adamw_torch_fused",              # 使用融合的adamw优化器
-    logging_steps = 1,                       # 每10步记录一次
-    save_strategy="epoch",                  # 每个epoch保存检查点
-    learning_rate = args.lr,                     # 学习率，基于QLoRA论文
-    bf16=True,                              # 使用bfloat16精度
-    tf32=True,                              # 使用tf32精度
-    max_grad_norm = 0.3,                      # 基于QLoRA论文的最大梯度范数
-    warmup_ratio = 0.03,                      # 根据QLoRA论文的预热比例
-    lr_scheduler_type="constant",           # 使用恒定学习率调度器
-    push_to_hub=False,                       # 将模型推送到Hub
-    report_to="tensorboard",                # 将指标报告到Tensorboard
+    output_dir=args.lora_config_dir, 
+    num_train_epochs = args.total_epoch,                     
+    per_device_train_batch_size = args.batch_size,          
+    gradient_accumulation_steps = 2,          # Number of steps before reverse/update
+    gradient_checkpointing = True,              # Use gradient checkpoints to save memory
+    optim="adamw_torch_fused",               
+    logging_steps = 1,                                   # Record every 1 steps
+    save_strategy="epoch",                          # Save checkpoints for each epoch
+    learning_rate = args.lr,                     
+    bf16=True,                                             # Using BFLOAT16 Precision
+    tf32=True,                                              # Using TF32 precision
+    max_grad_norm = 0.3,                          
+    warmup_ratio = 0.03,                      
+    lr_scheduler_type="constant",          
+    push_to_hub=False,                       
+    report_to="tensorboard",                
     )
 
 
