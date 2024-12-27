@@ -24,22 +24,22 @@ def main(args):
 
     """ get args """
     trainning_args = TrainingArguments(
-    output_dir=args.lora_config_dir, 
-    num_train_epochs = args.total_epoch,                     
-    per_device_train_batch_size = args.batch_size,          
-    gradient_accumulation_steps = 2,          # Number of steps before reverse/update
-    gradient_checkpointing = True,              # Use gradient checkpoints to save memory
-    optim="adamw_torch_fused",               
-    logging_steps = 1,                                   # Record every 1 steps
-    save_strategy="epoch",                          # Save checkpoints for each epoch
-    learning_rate = args.lr,                     
-    bf16=True,                                             # Using BFLOAT16 Precision
-    tf32=True,                                              # Using TF32 precision
-    max_grad_norm = 0.3,                          
-    warmup_ratio = 0.03,                      
-    lr_scheduler_type="constant",          
-    push_to_hub=False,                       
-    report_to="tensorboard",                
+        output_dir=args.lora_config_dir, 
+        num_train_epochs = args.total_epoch,                     
+        per_device_train_batch_size = args.batch_size,          
+        gradient_accumulation_steps = 2,          # Number of steps before reverse/update
+        gradient_checkpointing = True,              # Use gradient checkpoints to save memory
+        optim="adamw_torch_fused",               
+        logging_steps = 1,                                   # Record every 1 steps
+        save_strategy="epoch",                          # Save checkpoints for each epoch
+        learning_rate = args.lr,                     
+        bf16=True,                                             # Using BFLOAT16 Precision
+        tf32=True,                                              # Using TF32 precision
+        max_grad_norm = 0.3,                          
+        warmup_ratio = 0.03,                      
+        lr_scheduler_type="constant",          
+        push_to_hub=False,                       
+        report_to="tensorboard",                
     )
 
 

@@ -163,8 +163,8 @@ def main(args):
     model.to(device)
 
     """get data loader"""
-    train_datasets = MyDataset(data_path = args.data_path)
-    test_dataset = MyDataset(data_path = args.data_path)
+    train_datasets = DatasetForLLM(data_path = args.data_path)
+    test_dataset = DatasetForLLM(data_path = args.data_path)
     collate_fn_ = partial(collate_fn, 
                           tokenizer=model.tokenizer)
     train_dataloader = DataLoader(train_datasets, 
