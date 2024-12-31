@@ -1,0 +1,32 @@
+# config.yml
+
+model_type:
+  mistral_fintune
+# mdoel args
+model:        
+  model_name_or_path: mistralai/Mistral-7B-Instruct-v0.3
+  device: cuda   
+# trainning args
+traininng:
+  batch_size: 1               
+  epochs: 1000          
+  learning_rate: 0.0001   
+  optimizer: AdamW              
+  weight_decay: 0.0001
+  clip_max_norm: 0.5
+  factor: 0.3
+  patience: 15         
+  device: cuda
+
+dataset_type:
+  llm
+dataset:
+  train_data_path: data/train.jsonl       
+  test_data_path: data/test.jsonl       
+  valid_data_path: data/test.jsonl      
+  max_padding_length: 512
+
+
+logging:
+  log_interval: 100             
+  save_dir: "./saved_model/mistral"   
