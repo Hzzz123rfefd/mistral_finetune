@@ -11,11 +11,12 @@ from torch import optim
 
 from llmai.utils import *
 
-class Mistral(nn.Module):
-    def __init__(self, base_model_name_or_path, peft_config_dir = None):
-        super(Mistral, self).__init__()
-        self.model_name_or_path = base_model_name_or_path
+class ModelMistral(nn.Module):
+    def __init__(self, model_name_or_path, peft_config_dir = None, device  = "cuda"):
+        super(ModelMistral, self).__init__()
+        self.model_name_or_path = model_name_or_path
         self.peft_config_dir = peft_config_dir
+        self.device = device if torch.cuda.is_available() else "cpu"
         if self.peft_config_dir == "None":
             self.peft_config_dir = None
 
@@ -76,10 +77,11 @@ class Mistral(nn.Module):
         }
         outputs = self.backbone(**batch_data)
         logits = outputs.logits
+        _, _, f = logits.shape
         output = {
-            "predict": logits[..., :-1, :],
-            "label":input["input_ids"].reshape(-1,input["input_ids"].shape[2]).to(self.device)[:, 1:],
-            "mask":input["attention_mask"].reshape(-1,input["attention_mask"].shape[2]).to(self.device)[:,1:]
+            "predict": logits[..., :-1, :].reshape(-1, f),
+            "label":input["input_ids"].reshape(-1,input["input_ids"].shape[2]).to(self.device)[:, 1:].reshape(-1),
+            "mask":input["attention_mask"].reshape(-1,input["attention_mask"].shape[2]).to(self.device)[:,1:].reshape(-1)
         }
         return output
     
@@ -89,8 +91,15 @@ class Mistral(nn.Module):
         self.tokenizer.save_pretrained(save_model_dir)
 
     def load_pretrained(self, save_model_dir):
-        # load 
-        pass
+        self.base_model =  AutoModelForCausalLM.from_pretrained(
+            self.model_name_or_path,
+            quantization_config = self.bnb_config,
+            torch_dtype=torch.float16,
+            local_files_only = self.local_files_only
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path,local_files_only = self.local_files_only)
+        self.tokenizer.pad_token = self.tokenizer.eos_token 
+        self.base_model = self.base_model.to(self.device)
     
     def chat_with_context(self,context_path,max_new_tokens,device):      
         """ get data """  
@@ -136,6 +145,7 @@ class Mistral(nn.Module):
         self, epoch,train_dataloader, optimizer, clip_max_norm, log_path = None
     ):
         self.train()
+        self.to(self.device)
         pbar = tqdm(train_dataloader,desc="Processing epoch "+str(epoch), unit="batch")
         total_loss = AverageMeter()
         average_hit_rate = AverageMeter()

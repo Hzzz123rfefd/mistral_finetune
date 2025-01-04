@@ -1,7 +1,7 @@
 # config.yml
 
 model_type:
-  mistral_fintune
+  mistral
 # mdoel args
 model:        
   model_name_or_path: mistralai/Mistral-7B-Instruct-v0.3

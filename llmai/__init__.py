@@ -1,4 +1,4 @@
-from llmai.model import ModelPretrainForLLM
+from llmai.mistral import ModelMistral
 from llmai.dataset import DatasetForLLM
 
 
@@ -7,5 +7,5 @@ datasets = {
 }
 
 models = {
-    "mistral_fintune": ModelPretrainForLLM,
+    "mistral": ModelMistral,
 }
