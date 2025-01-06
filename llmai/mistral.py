@@ -11,6 +11,9 @@ from torch import optim
 
 from llmai.utils import *
 
+# class Model
+
+
 class ModelMistral(nn.Module):
     def __init__(self, model_name_or_path, peft_config_dir = None, device  = "cuda"):
         super(ModelMistral, self).__init__()
@@ -91,11 +94,17 @@ class ModelMistral(nn.Module):
         self.tokenizer.save_pretrained(save_model_dir)
 
     def load_pretrained(self, save_model_dir):
+        self.peft_config =  LoraConfig.from_pretrained(save_model_dir)
         self.base_model =  AutoModelForCausalLM.from_pretrained(
             self.model_name_or_path,
             quantization_config = self.bnb_config,
             torch_dtype=torch.float16,
             local_files_only = self.local_files_only
+        )
+        self.backbone = PeftModel.from_pretrained(
+            model = self.base_model, 
+            model_id = save_model_dir,
+            is_trainable = True
         )
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path,local_files_only = self.local_files_only)
         self.tokenizer.pad_token = self.tokenizer.eos_token 
