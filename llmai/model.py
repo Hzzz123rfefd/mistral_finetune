@@ -3,7 +3,7 @@ import math
 import os
 from tqdm import tqdm
 import torch
-from transformers import AutoModelForCausalLM,AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import get_peft_model, LoraConfig, TaskType,PeftModel
 from torch import nn
 from torch.utils.data import DataLoader
@@ -12,51 +12,79 @@ from torch import optim
 from llmai.utils import *
 
 # class Model
-
-
 class ModelMistral(nn.Module):
-    def __init__(self, model_name_or_path, peft_config_dir = None, device  = "cuda"):
-        super(ModelMistral, self).__init__()
+    def __init__(
+            self,
+            model_name_or_path: str = 'mistralai/Mistral-7B-Instruct-v0.3',
+            device: str = "cpu",
+        ):
+        super().__init__()
         self.model_name_or_path = model_name_or_path
-        self.peft_config_dir = peft_config_dir
+        self.bnb_config = BitsAndBytesConfig(
+            load_in_4bit = True,                                             # The model parameters are saved in memory as 4 bits
+            bnb_4bit_use_double_quant = True,                    # Double quantification
+            bnb_4bit_quant_type = "nf4",                              # Normal Float 4
+            bnb_4bit_compute_dtype = torch.float16            # Number of model parameter bits during inference
+        )
+        if self.model_name_or_path == None:
+            self.tokenizer = None
+            self.base_model = None
+        else:
+            self.base_model =  AutoModelForCausalLM.from_pretrained(
+                self.model_name_or_path,
+                quantization_config = self.bnb_config,
+                torch_dtype=torch.float16,
+            )
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
+            self.tokenizer.pad_token = self.tokenizer.eos_token 
         self.device = device if torch.cuda.is_available() else "cpu"
-        if self.peft_config_dir == "None":
-            self.peft_config_dir = None
+        
+    def forward(self,bacth_data):
+        output = self.model(bacth_data['input_ids'].to(self.device), bacth_data['attention_mask'].to(self.device))
+        return output
+
+    def load_pretrained(self,model_name_or_path:str):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+        self.base_model = AutoModelForCausalLM.from_pretrained(
+            self.model_name_or_path,
+            quantization_config = self.bnb_config,
+            torch_dtype=torch.float16,
+            local_files_only = self.local_files_only
+        )
+        self.tokenizer.pad_token = self.tokenizer.eos_token 
+        self.base_model = self.base_model.to(self.device)
+
+    def save_pretrained(self,save_model_dir:str):
+        self.base_model.save_pretrained(save_model_dir)
+        self.tokenizer.save_pretrained(save_model_dir)
+
+
+class ModelPretrainForLLMFintune(nn.Module):
+    def __init__(
+        self, 
+        model_name_or_path, 
+        device  = "cuda"
+    ):
+        super(ModelPretrainForLLMFintune, self).__init__()
+        self.model_name_or_path = model_name_or_path
+        self.device = device if torch.cuda.is_available() else "cpu"
 
         # load base model
-        self.base_model =  AutoModelForCausalLM.from_pretrained(
-            self.model_name_or_path,
-            torch_dtype=torch.float16
+        self.base_model =  ModelMistral(
+            model_name_or_path = self.model_name_or_path,
+            device = self.device
         )
-        if self.peft_config_dir:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.peft_config_dir)
-        else:
-            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
-        self.tokenizer.pad_token = self.tokenizer.eos_token 
-        self.tokenizer.padding_side = "left"
         
-        # load peft config
-        if self.peft_config_dir == None:
-            self.peft_config = LoraConfig(
-                task_type=TaskType.CAUSAL_LM, 
-                inference_mode = False,
-                r=8,
-                lora_alpha=16, 
-                lora_dropout=0.05
-            )
-        else:
-            self.peft_config =  LoraConfig.from_pretrained(self.peft_config_dir)
-
-        # load model with peft
-        if self.peft_config_dir == None:
-            self.backbone = get_peft_model(self.base_model, self.peft_config)
-        else:
-            self.backbone = PeftModel.from_pretrained(model = self.base_model, 
-                                                                                    model_id = self.peft_config_dir,
-                                                                                    is_trainable = True)
-
-        # show number of trainning parameters
-        self.backbone.print_trainable_parameters()
+        self.peft_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM, 
+            inference_mode = False,
+            r = 8,
+            lora_alpha = 16, 
+            lora_dropout = 0.05
+        )
+        
+        self.model = get_peft_model(self.base_model.base_model, self.peft_config)
+        self.tokenizer = self.base_model.tokenizer
     
     def compute_loss(self, input):
         output = {}
@@ -78,7 +106,7 @@ class ModelMistral(nn.Module):
             "input_ids":input["input_ids"].reshape(-1,input["input_ids"].shape[2]).to(self.device),
             "attention_mask":input["attention_mask"].reshape(-1,input["attention_mask"].shape[2]).to(self.device)
         }
-        outputs = self.backbone(**batch_data)
+        outputs = self.model(**batch_data)
         logits = outputs.logits
         _, _, f = logits.shape
         output = {
@@ -90,25 +118,20 @@ class ModelMistral(nn.Module):
     
     def save_pretrained(self, save_model_dir):
         # save lora config
-        self.backbone.save_pretrained(save_model_dir)
+        self.model.save_pretrained(save_model_dir)
         self.tokenizer.save_pretrained(save_model_dir)
 
     def load_pretrained(self, save_model_dir):
-        self.peft_config =  LoraConfig.from_pretrained(save_model_dir)
-        self.base_model =  AutoModelForCausalLM.from_pretrained(
-            self.model_name_or_path,
-            quantization_config = self.bnb_config,
-            torch_dtype=torch.float16,
-            local_files_only = self.local_files_only
-        )
-        self.backbone = PeftModel.from_pretrained(
-            model = self.base_model, 
-            model_id = save_model_dir,
-            is_trainable = True
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path,local_files_only = self.local_files_only)
-        self.tokenizer.pad_token = self.tokenizer.eos_token 
-        self.base_model = self.base_model.to(self.device)
+        if self.base_model != None:
+            self.peft_config =  LoraConfig.from_pretrained(save_model_dir)
+            self.model = PeftModel.from_pretrained(
+                model = self.base_model.base_model, 
+                model_id = save_model_dir,
+                is_trainable = True
+            )
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name_or_path)
+            self.tokenizer.pad_token = self.tokenizer.eos_token 
+            # self.base_model = self.base_model.to(self.device)
     
     def chat_with_context(self,context_path,max_new_tokens,device):      
         """ get data """  
@@ -123,7 +146,7 @@ class ModelMistral(nn.Module):
         """ inference """
         self.eval()
         with torch.no_grad():
-            generated_ids = self.backbone.generate(**input, 
+            generated_ids = self.model.generate(**input, 
                                                                         max_new_tokens = max_new_tokens, 
                                                                         do_sample = False)
             
@@ -140,7 +163,7 @@ class ModelMistral(nn.Module):
         """ inference """
         self.eval()
         with torch.no_grad():
-            generated_ids = self.backbone.generate(**input, 
+            generated_ids = self.model.generate(**input, 
                                         max_new_tokens = max_new_tokens, 
                                         do_sample = False)
         
@@ -231,9 +254,9 @@ class ModelMistral(nn.Module):
         total_epoch:int = 1000,
         save_checkpoint_step:str = 10,
         save_model_dir:str = "models",
-        first_train = True
     ):
         ## 1 trainning log path 
+        first_train = False
         check_point_path = save_model_dir  + "/checkpoint.pth"
         log_path = save_model_dir + "/train.log"
 
@@ -241,7 +264,7 @@ class ModelMistral(nn.Module):
         """
             If there is  training history record, load pretrain parameters
         """
-        if  first_train == False and os.path.isdir(save_model_dir) and os.path.exists(check_point_path) and os.path.exists(log_path):
+        if  os.path.isdir(save_model_dir) and os.path.exists(check_point_path) and os.path.exists(log_path):
             self.load_pretrained(save_model_dir)  
             first_train = False
 
@@ -324,3 +347,4 @@ class ModelMistral(nn.Module):
                     },
                     check_point_path
                 )
+                print("Training interruption...")

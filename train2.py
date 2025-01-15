@@ -1,23 +1,43 @@
 import argparse
 import os
 import torch
-from transformers import TrainingArguments
+from transformers import TrainingArguments, AutoModelForCausalLM, BitsAndBytesConfig
 from trl import SFTTrainer
 from datasets import load_dataset
+from peft import get_peft_model, LoraConfig, TaskType,PeftModel
 
-from llmai.model import Mistral
 def main(args):
     """get train device"""
     device = args.device if torch.cuda.is_available() else "cpu"
 
     """ get model """
-    if os.path.isdir(args.lora_config_dir):
-        model = Mistral(base_model_name_or_path = args.base_model_name_or_path,
-                                    peft_config_dir = args.lora_config_dir)
-    else:
-        os.makedirs(args.lora_config_dir)
-        model = Mistral(base_model_name_or_path = args.base_model_name_or_path)
-    model.to(device)
+    # bnb_config = BitsAndBytesConfig(
+    #     load_in_4bit = True,                                             # The model parameters are saved in memory as 4 bits
+    #     bnb_4bit_use_double_quant = True,                    # Double quantification
+    #     bnb_4bit_quant_type = "nf4",                              # Normal Float 4
+    #     bnb_4bit_compute_dtype = torch.float16            # Number of model parameter bits during inference
+    # )
+    model =  AutoModelForCausalLM.from_pretrained(
+        args.model_name_or_path,
+        torch_dtype = torch.float16,
+        # load_in_4bit = True,
+    )
+    
+    peft_config = LoraConfig(
+        task_type=TaskType.CAUSAL_LM, 
+        inference_mode = False,
+        r = 8,
+        lora_alpha = 16, 
+        lora_dropout = 0.05
+    )
+        
+    # if os.path.isdir(args.lora_config_dir):
+    #     model = Mistral(base_model_name_or_path = args.base_model_name_or_path,
+    #                                 peft_config_dir = args.lora_config_dir)
+    # else:
+    #     os.makedirs(args.lora_config_dir)
+    #     model = Mistral(base_model_name_or_path = args.base_model_name_or_path)
+    # model.to(device)
 
     """ get data """
     dataset = load_dataset("json", data_files=args.data_path, split="train")
@@ -44,10 +64,10 @@ def main(args):
 
 
     trainer = SFTTrainer(
-        model = model.base_model,
+        model = model,
         args = trainning_args,
         train_dataset = dataset,
-        peft_config = model.peft_config,
+        peft_config = peft_config,
         max_seq_length = args.max_seq_length,
         tokenizer = model.tokenizer,
         packing = True,
@@ -62,7 +82,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base_model_name_or_path",
+    parser.add_argument("--model_name_or_path",
                         type=str,
                         default = "mistralai/Mistral-7B-Instruct-v0.3")
     
@@ -72,7 +92,7 @@ if __name__ == "__main__":
     
     parser.add_argument("--data_path",
                         type=str,
-                        default = "data/train_dataset.json")
+                        default = "data/train.jsonl")
     
     parser.add_argument("--lr",
                         type=float,
